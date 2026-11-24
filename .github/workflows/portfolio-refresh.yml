@@ -35,7 +35,7 @@ jobs:
               updates += updated
               print(f"Checked {checked}, updated {updated}, pending {pending}", flush=True)
               if not pending:
-                  if not isinstance(fx, dict) or fx.get("error") or not (fx.get("price") or 0) > 0 or not updates:
+                  if not isinstance(fx, dict) or fx.get("error") or not (fx.get("price") or 0) > or not result.get("publicAvailable") or time.time() * 1000 - completed > 600000:
                       raise SystemExit("Could not verify FX or a price update.")
                   break
           else:
