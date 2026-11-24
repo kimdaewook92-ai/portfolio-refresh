@@ -1,0 +1,42 @@
+name: Portfolio refresh
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: portfolio-refresh
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Refresh quotes
+        env:
+          CLOCK_URL: ${{ secrets.PORTFOLIO_CLOCK_URL }}
+        shell: python
+        run: |
+          import json, os, subprocess, time
+          url = os.environ["CLOCK_URL"]
+          if not url.startswith("https://"):
+              raise SystemExit("Set PORTFOLIO_CLOCK_URL to the HTTPS refresh URL.")
+          updates = 0
+          for attempt in range(7):
+              if attempt:
+                  time.sleep(60)
+              raw = subprocess.check_output(["curl", "--fail", "--silent", "--show-error",
+                                             "--max-time", "75", "-H", "Cache-Control: no-cache", url])
+              result = json.loads(raw)
+              completed, checked, updated, fx, pending = (
+                  result[key] for key in ("completed", "checked", "updated", "fx", "pending"))
+              if not completed or type(checked) is not int or checked <= 0 or type(updated) is not int or not 0 <= updated <= checked or type(pending) is not bool:
+                  raise SystemExit("Missing or invalid refresh data.")
+              updates += updated
+              print(f"Checked {checked}, updated {updated}, pending {pending}", flush=True)
+              if not pending:
+                  if not isinstance(fx, dict) or fx.get("error") or not (fx.get("price") or 0) > 0 or not updates:
+                      raise SystemExit("Could not verify FX or a price update.")
+                  break
+          else:
+              raise SystemExit("Refresh still pending after six retries.")
